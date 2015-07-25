@@ -42,9 +42,20 @@ checkTE = (fn, msg) -> fn.should.throw TypeError, msg
 checkAny = (clsName, cls, readable, writable) ->
 
     describe "#{clsName}(opts?)", ->
-        it "returns an instance of readable-stream.#{clsName}"
-        it "passes opts through to readable-stream.#{clsName}"
-        it "works without new"
+        it "returns an instance of readable-stream.#{clsName}", ->
+            expect(new cls()).to.be.instanceOf rs[clsName]
+
+        it "passes opts through to readable-stream.#{clsName}", ->
+            inst = new cls(objectMode: true)
+            expect(inst._readableState.objectMode).to.be.true if readable
+            expect(inst._writableState.objectMode).to.be.true if writable
+
+        it "works without new", ->
+            inst = cls(objectMode: true)
+            expect(inst).to.be.instanceOf cls
+            expect(inst).to.be.instanceOf rs[clsName]
+            expect(inst._readableState.objectMode).to.be.true if readable
+            expect(inst._writableState.objectMode).to.be.true if writable
 
         describe ".spi()", ->
 
