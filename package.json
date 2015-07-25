@@ -27,6 +27,7 @@
   "license": "ISC",
   "devDependencies": {
     "babel-core": "^5.8.5",
+    "co": "^4.6.0",
     "gulp": "^3.8.0",
     "gulp-coffee": "^2.3.1",
     "gulp-mocha": "^2.1.3",

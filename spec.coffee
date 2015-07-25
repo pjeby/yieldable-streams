@@ -12,6 +12,7 @@ spy.named = (name, args...) ->
     return s
 
 {Readable, Writable, Duplex} = require './'
+rs = require 'readable-stream'
 
 util = require 'util'
 
@@ -23,18 +24,59 @@ withSpy = (ob, name, fn) ->
 
 checkTE = (fn, msg) -> fn.should.throw TypeError, msg
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+checkAny = (clsName, cls, readable, writable) ->
+
+    describe "#{clsName}(opts?)", ->
+        it "returns an instance of readable-stream.#{clsName}"
+        it "passes opts through to readable-stream.#{clsName}"
+        it "works without new"
+
+        describe ".spi()", ->
+
+            if writable then describe ".read() returns a thunk", ->
+                it "that resolves when data is written to the stream"
+                it "that errors when a piped stream emits an error"
+
+            if readable then describe ".write(data)", ->
+                it "sends data to the stream's push() method"
+                it "returns a thunk that resolves when data is read"
+
+            describe ".end(err?)", ->
+                it "emits `err` as an error event"
+                if readable then it "calls stream.push(null)"
+                if writable then it "calls stream.end()"
+
+    describe "#{clsName}.factory(opts?, fn) returns a function that", ->
+
+        it "returns a #{clsName} created w/opts or {objectMode: true}"
+
+        it "invokes fn with the stream.spi() as `this`, passing thru arguments"
+
+        describe "executes fn's return value", ->
+            it "chains `then()` to call `end()` if it's a promise"
+            it "chains thunk to call `end()` if it's a function"
+            it "via `thunks` if it's a generator"
+        
+
+checkAny('Readable', Readable, yes, no)
+checkAny('Writable', Writable, no, yes)
+checkAny('Duplex', Duplex, yes, yes)
+
 require('mockdown').testFiles(['README.md'], describe, it, skip: yes)
-
-
-
-
-
-
-
-
-
-
-
-
 
 
