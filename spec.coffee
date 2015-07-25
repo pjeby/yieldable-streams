@@ -23,7 +23,7 @@ withSpy = (ob, name, fn) ->
 
 checkTE = (fn, msg) -> fn.should.throw TypeError, msg
 
-
+require('mockdown').testFiles(['README.md'], describe, it, skip: yes)
 
 
 

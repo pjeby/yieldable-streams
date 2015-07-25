@@ -4,7 +4,7 @@ Wouldn't it be great if you could create Node streams -- readable, writable, or 
 
 <!-- mockdown: expect = 'done' -->
 
-```js
+```es6
 const
     {Readable, Writable, Duplex} = require('yieldable-streams'),
 
@@ -15,6 +15,7 @@ const
             }
         }
     ),
+
     times = Duplex.factory(
         function *(multiplier) {
             var item;
@@ -23,6 +24,7 @@ const
             }
         }
     ),
+
     toConsole = Writable.factory(
         function *() {
             var item;
@@ -35,7 +37,8 @@ const
 fromIter([3,5,9])
 .pipe(times(2))
 .pipe(toConsole())
-.on('finish', ()=> console.log("done"));
+.on('finish', () => console.log("done"));
+
 console.log("start");
 ```
 
@@ -49,7 +52,7 @@ In the above code, the calls to `fromIter()`, `times()`, and `toConsole()` creat
 
 And because these are true Node streams, that means you can write gulp plugins as easy as this (JS):
 
-```js
+```es6
 module.exports = require('yieldable-streams').Duplex.factory(
     function* (options) { // plugin options
         var file;
@@ -61,6 +64,8 @@ module.exports = require('yieldable-streams').Duplex.factory(
 )
 ```
 Or this (CoffeeScript):
+
+<!-- mockdown: ++ignore -->
 
 ```coffee
 module.exports = require('yieldable-streams').Duplex.factory (options) ->
@@ -93,7 +98,8 @@ Each stream class also has a static method, `.factory(opts?, fn)`, which wraps t
 If `fn` is already wrapped by a coroutine library, such that it returns a thenable, promise or thunk, that return value will be hooked up to the `end()` method, so that unhandled exceptions will result in an `"error"` event, and a normal end to the coroutine will simply close the stream.  For example:
 
 <!-- mockdown: ++ignore -->
-```js
+
+```es6
 aFactory = Writable.factory(
   co.wrap(
     function *(options) {
