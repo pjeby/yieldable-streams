@@ -1,0 +1,45 @@
+{
+  "name": "yieldable-streams",
+  "version": "0.1.0",
+  "description": "Easily create streams (and gulp plugins) w/generators",
+  "repository": "git@github.com:pjeby/yieldable-streams.git",
+  "homepage": "https://github.com/pjeby/yieldable-streams",
+  "main": "yieldable-streams.js",
+  "files": [
+    "yieldable-streams.js"
+  ],
+  "scripts": {
+    "test": "gulp test",
+    "prepublish": "gulp build"
+  },
+  "keywords": [
+    "co",
+    "coroutine",
+    "coroutines",
+    "streams",
+    "ES6",
+    "generators",
+    "streams3",
+    "readable-streams",
+    "thunks"
+  ],
+  "author": "PJ Eby <pje@telecommunity.com>",
+  "license": "ISC",
+  "devDependencies": {
+    "gulp": "^3.8.0",
+    "gulp-coffee": "^2.3.1",
+    "gulp-mocha": "^2.1.3",
+    "coffee-script": "^1.9.3",
+    "mocha": "^2.2.5",
+    "mockdown": "^0.2.0",
+    "chai": "^1.9.1",
+    "sinon": "^1.9.1",
+    "sinon-chai": "^2.5.0"
+  },
+  "dependencies": {
+    "autocreate": "^1.0.0",
+    "readable-stream": "^2.0.2",
+    "redefine": "^0.2.0",
+    "thunks": "^3.4.4"
+  }
+}
