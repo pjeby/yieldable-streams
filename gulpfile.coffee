@@ -3,6 +3,7 @@ mocha = require 'gulp-mocha'
 coffee = require 'gulp-coffee'
 
 require 'coffee-script/register'
+require('harmonize')()
 
 package_name = JSON.parse(require('fs').readFileSync "package.json").name
 main = "#{package_name}.litcoffee"
