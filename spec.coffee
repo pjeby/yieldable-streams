@@ -59,16 +59,67 @@ checkAny = (clsName, cls, readable, writable) ->
 
         describe ".spi()", ->
 
-            beforeEach -> @s = cls(); @spi = @s.spi()
+            beforeEach ->
+                @s = cls(objectMode: yes, highWaterMark: 1)
+                @spi = @s.spi()
+
+            it "always returns the same object", ->
+                expect(@s.spi()).to.equal @spi
 
             if writable then describe ".read() returns a thunk", ->
                 it "that resolves when data is written to the stream"
                 it "that errors when a piped stream emits an error"
                 it "that always resolves to null after .end() is called"
 
+
+
+
+
+
+
+
+
+
             if readable then describe ".write(data)", ->
-                it "sends data to the stream's push() method"
-                it "returns a thunk that resolves when data is read"
+
+                it "sends data to the stream's push() method", ->
+                    withSpy @s, 'push', (p) =>
+                        @spi.write(data = thing:1)
+                        p.should.have.been.calledOnce
+                        p.should.have.been.calledWithExactly(same(data))
+
+                it "returns a thunk that resolves when data is read", ->
+                    @spi.write(data = thing:2) s = spy.named 'thunk', ->
+                    s.should.not.have.been.called
+                    @s.read()
+                    s.should.have.been.calledOnce
+                    s.should.have.been.calledWithExactly()
+                    
+                it "returns process.nextTick when buffer space is available", ->
+                    spi = cls(objectMode: yes).spi()
+                    expect(spi.write(data=thing:3)).to.equal process.nextTick
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
             describe ".end(err?)", ->
 
@@ -92,6 +143,25 @@ checkAny = (clsName, cls, readable, writable) ->
                         e.should.have.been.calledOnce
                         e.should.have.been.calledWithExactly()
 
+                if readable and writable then it(
+                    "calls stream.end() *after* stream.push()", ->
+                        withSpy @s, 'end', (e) =>
+                            withSpy @s, 'push', (p) =>
+                                @spi.end()
+                                e.should.have.been.calledOnce
+                                e.should.have.been.calledWithExactly()
+                                p.should.have.been.calledOnce
+                                p.should.have.been.calledWithExactly(null)
+                                e.should.have.been.calledAfter(p)
+                )
+
+
+
+
+
+
+
+
         if writable then describe "._write(data, enc, done)", ->
 
             describe "when a read() thunk is outstanding,", ->
@@ -102,6 +172,7 @@ checkAny = (clsName, cls, readable, writable) ->
 
             describe "without a read() thunk active,", ->
                 it "queues the data for a later read()"
+
 
     describe "#{clsName}.factory(opts?, fn) returns a function that", ->
 
@@ -120,4 +191,15 @@ checkAny('Writable', Writable, no, yes)
 checkAny('Duplex', Duplex, yes, yes)
 
 require('mockdown').testFiles(['README.md'], describe, it, skip: yes)
+
+
+
+
+
+
+
+
+
+
+
 
