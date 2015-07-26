@@ -41,6 +41,11 @@ emitting an error as it does so.
 
 ### Writable/Duplex Streams
 
+Writable streams pass on errors from streams piped into them, and therefore
+have to buffer errors as well as data.  They also need to track the callback
+provided by incoming `stream.write()` calls (as `.wreq`), so that the stream
+can resume accepting writes when the data is actually read.
+
     writable_mixin =
         dbuf: redefine.later(Array)     # (err, data) buffer
         rreq: redefine.later(Array)     # spi.read() request callbacks
@@ -52,12 +57,13 @@ emitting an error as it does so.
         _write: (data, enc, done) -> @_tpush(done, data)
 
         _tpush: (done, data, err) ->
-            if rr = @rreq.shift()
+            if rr = @rreq.shift()   # read() thunk waiting?
                 rr(err ? null, data)
-                if @rreq.length then done() else @wreq = done
             else
-                @dbuf.push(err ? null, data)
-                @wreq = done
+                @dbuf.push(err ? null, data)    # nope, gotta buffer it
+
+            # resume synchronously if another read() is pending
+            if done then (if @rreq.length then done() else @wreq = done)
             return
 
         _spi_read: -> (done) =>
@@ -68,15 +74,9 @@ emitting an error as it does so.
             else
                 @rreq.push(done)
             if @wreq
-                process.nextTick(@wreq)
+                process.nextTick(@wreq)     # resume calls to _write()
                 @wreq = undefined
             return
-
-
-
-
-
-
 
 
 

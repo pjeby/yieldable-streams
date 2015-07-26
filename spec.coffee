@@ -69,8 +69,9 @@ checkAny = (clsName, cls, readable, writable) ->
             if writable then describe ".read() returns a thunk", ->
                 it "that errors when a piped stream emits an error", (done) ->
                     ss = new Readable(objectMode: yes); ss.pipe(@s)
-                    ss.emit("error", e=new Error)
                     @spi.read() s = spy.named 'thunk', ->
+                    @spi.read() s   # check pre-queued read case!
+                    ss.emit("error", e=new Error)
                     shouldCallLaterOnce(done, s, e, null)
 
                 it "that resolves to null after .end() is called", (done) ->
@@ -78,7 +79,6 @@ checkAny = (clsName, cls, readable, writable) ->
                     @spi.read() s = spy.named 'thunk', ->
                     s.should.not.have.been.called   # must be async
                     shouldCallLaterOnce(done, s, null, null)
-
 
                 describe "that resolves when data is written to the stream", ->
 
