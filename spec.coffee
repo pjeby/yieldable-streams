@@ -29,12 +29,12 @@ withSpy = (ob, name, fn) ->
 
 checkTE = (fn, msg) -> fn.should.throw TypeError, msg
 
+shouldCallLaterOnce = (done, spy, args...) ->
+    setImmediate failSafe done, -> onceExactly(spy, args...); done()
 
-
-
-
-
-
+onceExactly = (spy, args...) ->
+    spy.should.have.been.calledOnce
+    spy.should.have.been.calledWithExactly(args...)
 
 
 
@@ -67,16 +67,57 @@ checkAny = (clsName, cls, readable, writable) ->
                 expect(@s.spi()).to.equal @spi
 
             if writable then describe ".read() returns a thunk", ->
-                it "that resolves when data is written to the stream"
-                it "that errors when a piped stream emits an error"
-                it "that always resolves to null after .end() is called"
+                it "that errors when a piped stream emits an error", (done) ->
+                    ss = new Readable(objectMode: yes); ss.pipe(@s)
+                    ss.emit("error", e=new Error)
+                    @spi.read() s = spy.named 'thunk', ->
+                    shouldCallLaterOnce(done, s, e, null)
+
+                it "that resolves to null after .end() is called", (done) ->
+                    @s.end()
+                    @spi.read() s = spy.named 'thunk', ->
+                    s.should.not.have.been.called   # must be async
+                    shouldCallLaterOnce(done, s, null, null)
 
 
+                describe "that resolves when data is written to the stream", ->
 
+                    shouldReadTwice = (done, s, d1, d2) ->
+                        setImmediate failSafe done, ->
+                            s.should.be.calledTwice
+                            s.should.be.calledWithExactly(null, same(d1))
+                            s.should.be.calledWithExactly(null, same(d2))
+                            s.args[0][1].should.equal d1
+                            done()
 
+                    it "before .read() is called (once)", (done) ->
+                        @s.write(data = thing: 5)
+                        @spi.read() s = spy.named 'thunk', ->
+                        shouldCallLaterOnce(done, s, null, same(data))
 
+                    it "before .read() is called (multi)", (done) ->
+                        @s.write(d1 = thing: 5); @s.write(d2 = thing: 6)
+                        @spi.read() s = spy.named 'thunk', ->
+                        @spi.read() s
+                        shouldReadTwice(done, s, d1, d2)
 
+                    it "after .read() is called", (done) ->
+                        @spi.read() s = spy.named 'thunk', ->
+                        process.nextTick => @s.write(d)
+                        shouldCallLaterOnce(done, s, null, same(d = thing: 7))
 
+                    it "after .read() is called (multi)", (done) ->
+                        @spi.read() s = spy.named 'thunk', ->
+                        @spi.read() s
+                        process.nextTick => @s.write(d1); @s.write(d2)
+                        shouldReadTwice(done, s, d1 = thing: 8, d2 = thing: 9)
+
+                    it "before and after .read() is called", (done) ->
+                        @spi.read() s = spy.named 'thunk', ->
+                        @s.write(d1 = thing: 8)
+                        @spi.read() s
+                        @s.write(d2 = thing: 9)
+                        shouldReadTwice(done, s, d1, d2)
 
 
 
@@ -94,8 +135,8 @@ checkAny = (clsName, cls, readable, writable) ->
                     @s.read()
                     s.should.have.been.calledOnce
                     s.should.have.been.calledWithExactly()
-                    
-                it "returns process.nextTick when buffer space is available", ->
+
+                it "returns process.nextTick if buffer space is available", ->
                     spi = cls(objectMode: yes).spi()
                     expect(spi.write(data=thing:3)).to.equal process.nextTick
 
@@ -162,23 +203,11 @@ checkAny = (clsName, cls, readable, writable) ->
 
 
 
-        if writable then describe "._write(data, enc, done)", ->
-
-            describe "when a read() thunk is outstanding,", ->
-                it "calls back the thunk"
-                it "forwards unhandled errors to done()"
-                it "throws directly if no callback"
-                it "calls done() synchronously if thunk calls read()"
-
-            describe "without a read() thunk active,", ->
-                it "queues the data for a later read()"
-
-
     describe "#{clsName}.factory(opts?, fn) returns a function that", ->
 
         it "returns a #{clsName} created w/opts or {objectMode: true}"
 
-        it "invokes fn with the stream.spi() as `this`, passing thru arguments"
+        it "invokes fn with stream.spi() as `this`, passing thru arguments"
 
         describe "executes fn's return value", ->
             it "chains `then()` to call `end()` if it's a promise"
@@ -191,6 +220,18 @@ checkAny('Writable', Writable, no, yes)
 checkAny('Duplex', Duplex, yes, yes)
 
 require('mockdown').testFiles(['README.md'], describe, it, skip: yes)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

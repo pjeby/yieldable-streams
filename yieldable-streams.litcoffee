@@ -42,9 +42,42 @@ emitting an error as it does so.
 ### Writable/Duplex Streams
 
     writable_mixin =
+        dbuf: redefine.later(Array)     # (err, data) buffer
+        rreq: redefine.later(Array)     # spi.read() request callbacks
+
         __init__: ->
-        _write: (data, enc, done) ->
-        _spi_read: ->
+            @wreq = undefined   # incoming write request callback
+            @on 'pipe', (s) => s.on 'error', (e) => @_tpush(null, null, e)
+
+        _write: (data, enc, done) -> @_tpush(done, data)
+
+        _tpush: (done, data, err) ->
+            if rr = @rreq.shift()
+                rr(err ? null, data)
+                if @rreq.length then done() else @wreq = done
+            else
+                @dbuf.push(err ? null, data)
+                @wreq = done
+            return
+
+        _spi_read: -> (done) =>
+            if @_writableState.ended or @dbuf.length
+                d1 = if @dbuf.length then @dbuf.shift() else null
+                d2 = if @dbuf.length then @dbuf.shift() else null
+                process.nextTick => done(d1, d2)
+            else
+                @rreq.push(done)
+            if @wreq
+                process.nextTick(@wreq)
+                @wreq = undefined
+            return
+
+
+
+
+
+
+
 
 
 ### Readable/Duplex Streams
@@ -56,12 +89,20 @@ the buffer has room, allowing the caller to proceed.
 
     readable_mixin =
         ww: redefine.later(Array)   # waiting writers' callbacks
-        
+
         _read: -> @ww.shift()() if @ww.length
 
         _spi_write: (data) ->
             if @push(data) then process.nextTick else (done) => @ww.push(done)
-        
+
+
+
+
+
+
+
+
+
 
 
 
