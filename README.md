@@ -2,6 +2,8 @@
 
 Wouldn't it be great if you could create Node streams -- readable, writable, or duplex/transform/gulp plugins -- with just a single generator function?  Check this out:
 
+<!-- mockdown-setup: languages.babel.options.blacklist=['regenerator']; --printResults -->
+
 <!-- mockdown: expect = 'done' -->
 
 ```es6
@@ -34,17 +36,19 @@ const
         }
     );
 
+done = wait();
+
 fromIter([3,5,9])
 .pipe(times(2))
 .pipe(toConsole())
-.on('finish', () => console.log("done"));
+.on('finish', () => {console.log("done"); done();} );
 
 console.log("start");
 ```
 
 >     start
 >     6
->     11
+>     10
 >     18
 >     done
 
@@ -61,11 +65,9 @@ module.exports = require('yieldable-streams').Duplex.factory(
             yield this.write(file);  // pass it downstream
         }
     }
-)
+);
 ```
 Or this (CoffeeScript):
-
-<!-- mockdown: ++ignore -->
 
 ```coffee
 module.exports = require('yieldable-streams').Duplex.factory (options) ->

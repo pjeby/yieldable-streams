@@ -3,12 +3,12 @@
 This module implements enhanced `readable-stream` derivatives that provide
 an inverted API for use with generator-based coroutines.  `redefine` is used
 to do mixins and lazy properties (such as callback queues), and `autocreate`
-is used to make the classes instantiable without `new` (the way Node core
-streams are.)
+is used to make the classes instantiable without `new`, like Node core streams.
 
     rs = require 'readable-stream'
     redefine = require('redefine')
     autocreate = require 'autocreate'
+    thunks = -> (thunks = require('thunks')()).apply(this, arguments)
 
 ## The Stream Provider Interface
 
@@ -53,6 +53,7 @@ can resume accepting writes when the data is actually read.
         __init__: ->
             @wreq = undefined   # incoming write request callback
             @on 'pipe', (s) => s.on 'error', (e) => @_tpush(null, null, e)
+            @on 'finish', => @_tpush(null, null, null)  # queue a null at EOF
 
         _write: (data, enc, done) -> @_tpush(done, data)
 
@@ -67,7 +68,7 @@ can resume accepting writes when the data is actually read.
             return
 
         _spi_read: -> (done) =>
-            if @_writableState.ended or @dbuf.length
+            if @_writableState.finished or @dbuf.length
                 d1 = if @dbuf.length then @dbuf.shift() else null
                 d2 = if @dbuf.length then @dbuf.shift() else null
                 process.nextTick => done(d1, d2)
@@ -77,7 +78,6 @@ can resume accepting writes when the data is actually read.
                 process.nextTick(@wreq)     # resume calls to _write()
                 @wreq = undefined
             return
-
 
 
 ### Readable/Duplex Streams
@@ -123,7 +123,44 @@ the buffer has room, allowing the caller to proceed.
 
 ## Stream Factories
 
-    factory = ->
+A stream factory is a function wrapper that invokes a function with `this`
+as the `.spi()` of a new stream of the corresponding type, passing through any
+arguments given to the factory.  If options are given when creating the
+factory, they're used to initialize the new streams.
+
+    factory = (opts, fn) ->
+        if typeof opts is "function"
+            fn = opts
+            opts = objectMode: yes
+
+        return =>
+            stream = new this(opts)
+            gen = fn.apply(spi = stream.spi(), arguments)
+            doEnd = (e) -> spi.end(e)
+
+            if typeof gen?.then is "function"
+                gen.then (-> spi.end()), doEnd
+            else if typeof gen is "function"
+                gen(doEnd)
+            else if typeof gen?.next is "function"
+                thunks.call(spi, gen)(doEnd)
+
+            return stream
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## Exported Classes
 
@@ -151,6 +188,10 @@ the buffer has room, allowing the caller to proceed.
         redefine @::, base_mixin
         redefine @::, readable_mixin
         redefine @::, writable_mixin
+
+
+
+
 
 
 

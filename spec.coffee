@@ -205,35 +205,78 @@ checkAny = (clsName, cls, readable, writable) ->
 
     describe "#{clsName}.factory(opts?, fn) returns a function that", ->
 
-        it "returns a #{clsName} created w/opts or {objectMode: true}"
+        it "returns a #{clsName} created w/opts or {objectMode: true}", ->
+            s1 = cls.factory(->)()
+            s2 = cls.factory({}, ->)()
+            s1.should.be.instanceOf(cls)
+            s2.should.be.instanceOf(cls)
+            expect(s1._readableState.objectMode).to.be.true if readable
+            expect(s1._writableState.objectMode).to.be.true if writable
+            expect(s2._readableState.objectMode).to.be.false if readable
+            expect(s2._writableState.objectMode).to.be.false if writable
 
-        it "invokes fn with stream.spi() as `this`, passing thru arguments"
+        it "invokes fn with stream.spi() as `this`, passing thru arguments", ->
+            s = cls.factory(fn = spy.named 'fn', ->)(1, 2, 3)
+            fn.should.be.calledOn(s.spi())
+            fn.should.be.calledWithExactly(1, 2, 3)
 
         describe "executes fn's return value", ->
-            it "chains `then()` to call `end()` if it's a promise"
-            it "chains thunk to call `end()` if it's a function"
-            it "via `thunks` if it's a generator"
+            checkEnd = (cb, s, t, inVal, outArgs...) ->
+                s.should.not.be.called; t.should.be.calledOnce
+                cb(inVal); s.should.be.calledOnce.and.calledWithExactly(outArgs...)
+                t.reset()
+
+            beforeEach -> @setup = (result) ->
+                @stream = cls.factory(-> result)()
+                @stream.on 'error', ->
+                @spi = @stream.spi()
+                return spy.named 'end', @spi, 'end'
+
+            it "chains `then()` to call `end()` if it's a promise", ->
+                s = @setup then: t = spy.named 'then', (@cb1, @cb2) =>
+                checkEnd(@cb1, s, t, 1)
+                s = @setup then: t
+                checkEnd(@cb2, s, t, e=new Error, e)
+
+            it "chains thunk to call `end()` if it's a function", ->
+                s = @setup t = spy.named 'thunk', (@done) =>
+                checkEnd(@done, s, t, null, null)
+                s = @setup t
+                checkEnd(@done, s, t, e=new Error, e)
+
+            describe "via `thunks` if it's a generator", ->
+
+                it "when the generator finishes without error", (done) ->
+                    s = @setup(
+                        called: no
+                        next: ->
+                            if @called then done: yes, value: undefined
+                            else @called = yes; done: no, value: process.nextTick
+                        throw: ->
+                    )
+                    shouldCallLaterOnce(done, s, null)
+
+                it "when the generator finishes with error", (done) ->
+                    e = new Error()
+                    s = @setup(
+                        called: no
+                        next: ->
+                            if @called then throw e
+                            else
+                                @called = yes
+                                return done: no, value: process.nextTick
+                        throw: ->
+                    )
+                    shouldCallLaterOnce(done, s, same(e))
+
+
 
 
 checkAny('Readable', Readable, yes, no)
 checkAny('Writable', Writable, no, yes)
 checkAny('Duplex', Duplex, yes, yes)
 
-require('mockdown').testFiles(['README.md'], describe, it, skip: yes)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+require('mockdown').testFiles(['README.md'], describe, it, skip: no)
 
 
 
