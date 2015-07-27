@@ -2,7 +2,7 @@
 
 Wouldn't it be great if you could create Node streams -- readable, writable, or duplex/transform/gulp plugins -- with just a single generator function?  Check this out:
 
-<!-- mockdown-setup: languages.babel.options.blacklist=['regenerator']; --printResults -->
+<!-- mockdown-setup:  --printResults -->
 
 <!-- mockdown: waitForOutput = 'done' -->
 
@@ -50,22 +50,26 @@ console.log("start");
 >     18
 >     done
 
-In the above code, the calls to `fromIter()`, `times()`, and `toConsole()` create *real*, honest-to-goodness Node streams: streams3 streams, in fact, straight from the `readable-stream` package.  But on the inside, they're hooked up to generator functions, that can not only yield to `this.write()` etc., but to promises, thunks, or other generator functions.  (You can use all the async yielding goodness of `co`, `thunks`, or any other coroutine wrapper library you like, in fact, as long as it supports yielding to thunks.)
+In the above code, the calls to `fromIter()`, `times()`, and `toConsole()` create *real*, honest-to-goodness Node streams: streams3 streams, in fact, straight from the [`readable-stream`](https://npmjs.com/package/readable-stream) package.  But on the inside, they're hooked up to generator functions, that can not only yield to `this.write()` etc., but also to promises, thunks, or other generator functions.
 
-And because these are true Node streams, that means you can write gulp plugins as easy as this (JS):
+You can use all the async yielding goodness of [`co`](https://npmjs.com/package/co), [`thunks`](https://npmjs.com/package/thunks), or any other coroutine wrapper library you like, in fact, as long as it supports yielding to thunks.
+
+And because these are true Node streams, that means you can write gulp plugins as easily as this (Javascript):
 
 ```es6
 module.exports = require('yieldable-streams').Duplex.factory(
-    function* (options) { // plugin options
+    function* (options) { /* plugin options */
         var file;
-        while ((file = yield this.read()) != null) {  // get a file
-            console.log(file.path);  // do things with it
-            yield this.write(file);  // pass it downstream
+        while ((file = yield this.read()) != null) {  /* get a file */
+            console.log(file.path);  /* do things with it */
+            yield this.write(file);  /* pass it downstream */
         }
     }
 );
 ```
 Or this (CoffeeScript):
+
+<!--mockdown: ++ignore-->
 
 ```coffee
 module.exports = require('yieldable-streams').Duplex.factory (options) ->
@@ -75,7 +79,9 @@ module.exports = require('yieldable-streams').Duplex.factory (options) ->
     return
 ```
 
-`yieldable-streams` does not use generators internally and is compatible with node 0.10 and up.  You can use it with `gnode`, `regenerator`, `babel`, `harmonize`, io.js, or any other convenient way of implementing generators for your targeted versions of node.  (We suggest compiling with Babel or Regenerator if you are writing a module for node 0.10 or 0.12, though.)
+`yieldable-streams` does not actually use generators internally, and thus is compatible with node 0.10 and up.  You can use it with [`gnode`](https://npmjs.com/package/gnode), [`regenerator`](https://npmjs.com/package/regenerator), [`babel`](https://babeljs.io), [`harmonize`](https://npmjs.com/package/harmonize), [io.js](https://iojs.org/), or any other convenient way of implementing generators for your targeted versions of node.
+
+(If you're writing a module or gulp plugin for node 0.10 or 0.12, though, we suggest precompiling with Babel or Regenerator.  That way, your users won't have to mess with node's command-line options or fuss with `require.extensions` hooks just to use your module.)
 
 
 ## Usage
@@ -96,7 +102,7 @@ This "stream provider interface" object has (some or all of) the following metho
 
 * `end(err)` -- end the stream, optionally with an error object to emit as an `"error"` event (all stream types).
 
-Each stream class also has a static method, `.factory(opts?, fn)`, which wraps the given function in such a way that when called, it will receive a stream provider interface as `this`, and will return the matching stream.  In this way, the function provides the stream's internal implementation, while the caller receives an ordinary stream object.
+Each stream class also has an added static method, `.factory(opts?, fn)`, which wraps the given function in such a way that when called, it will receive a stream provider interface as `this`, and will return the matching stream.  In this way, the function provides the stream's internal implementation, while the caller receives an ordinary stream object.
 
 If `fn` is already wrapped by a coroutine library, such that it returns a thenable, promise or thunk, that return value will be hooked up to the `end()` method, so that unhandled exceptions will result in an `"error"` event, and a normal end to the coroutine will simply close the stream.  For example:
 
@@ -105,10 +111,10 @@ If `fn` is already wrapped by a coroutine library, such that it returns a thenab
 ```es6
 aFactory = Writable.factory(
   co.wrap(
-    function *(options) {
+    function *(...args) {
       /* 
         This generator will be run by `co`, but its `this`
-        will still be the stream's spi(), so you can still
+        will still be the stream's `spi()`, so you can still
         `yield this.read()`.  If the generator throws an
         uncaught exception, it will become an error event
         on the stream.  Otherwise, the stream will `finish`
@@ -126,6 +132,6 @@ aFactory = Writable.factory(
 )
 ```
 
-If `fn`, however, returns a generator or is a generator function (i.e., it has *not* already been wrapped by a coroutine library, then `yieldable-streams` will wrap it using the `thunks` library.  (Lazily-loaded, to minimize overhead if you're not using it.)
+If `fn`, however, returns a generator or is a generator function (i.e., it has *not* already been wrapped by a coroutine library, then `yieldable-streams` will wrap it using the [`thunks`](https://npmjs.com/package/thunks) library.  (Lazily-loaded, to minimize overhead if you're not using it.)
 
-The optional `opts` object contains the `readable-stream` options that the factory will use to create the stream.  If unsupplied, it will default to `{objectMode: true}`, thereby creating an object stream suitable for use with, e.g. gulp.  See the [Node streams documentation](https://nodejs.org/api/stream.html) for information on the possible options for each stream type.
+The optional `opts` object contains the `readable-stream` options that the factory will use to create the stream.  If unsupplied, it will default to `{objectMode: true}`, thereby creating an object stream suitable for use with, e.g. gulp.  See the [Node streams documentation](https://nodejs.org/api/stream.html) for more information on the possible options for each stream type.
