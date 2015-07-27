@@ -34,7 +34,7 @@
     "harmonize": "^1.4.4",
     "coffee-script": "^1.9.3",
     "mocha": "^2.2.5",
-    "mockdown": "^0.2.0",
+    "mockdown": "^0.3.0",
     "chai": "^1.9.1",
     "sinon": "^1.9.1",
     "sinon-chai": "^2.5.0"

@@ -4,7 +4,7 @@ Wouldn't it be great if you could create Node streams -- readable, writable, or 
 
 <!-- mockdown-setup: languages.babel.options.blacklist=['regenerator']; --printResults -->
 
-<!-- mockdown: expect = 'done' -->
+<!-- mockdown: waitForOutput = 'done' -->
 
 ```es6
 const
@@ -36,12 +36,10 @@ const
         }
     );
 
-done = wait();
-
 fromIter([3,5,9])
 .pipe(times(2))
 .pipe(toConsole())
-.on('finish', () => {console.log("done"); done();} );
+.on('finish', () => console.log("done") );
 
 console.log("start");
 ```
@@ -76,6 +74,9 @@ module.exports = require('yieldable-streams').Duplex.factory (options) ->
         yield @write(file)
     return
 ```
+
+`yieldable-streams` does not use generators internally and is compatible with node 0.10 and up.  You can use it with `gnode`, `regenerator`, `babel`, `harmonize`, io.js, or any other convenient way of implementing generators for your targeted versions of node.  (We suggest compiling with Babel or Regenerator if you are writing a module for node 0.10 or 0.12, though.)
+
 
 ## Usage
 
