@@ -17,6 +17,8 @@
     "coroutine",
     "coroutines",
     "streams",
+    "gulp",
+    "gulpfriendly",
     "ES6",
     "generators",
     "streams3",

@@ -58,13 +58,20 @@ And because these are true Node streams, that means you can write gulp plugins a
 
 ```js
 module.exports = require('yieldable-streams').Transform.factory(
+
     function* (options) { /* plugin options */
+
         var file;
-        while ((file = yield this.read()) != null) {  /* get a file */
+
+        while ( (file = yield this.read()) != null ) {  /* get a file */
             console.log(file.path);  /* do things with it */
             yield this.write(file);  /* pass it downstream */
         }
+
+        /* do something with accumulated data here, or 
+           maybe write() some new/added/merged files */
     }
+
 );
 ```
 Or this (CoffeeScript):
@@ -73,10 +80,14 @@ Or this (CoffeeScript):
 
 ```coffee
 module.exports = require('yieldable-streams').Transform.factory (options) ->
-    while (file = yield @read())?
-        console.log file.path
-        yield @write(file)
-    return
+
+    while (file = yield @read())?   # get a file
+        console.log file.path       # do stuff
+        yield @write(file)          # pass it on
+
+    # do other things
+    
+    return   # don't return anything, though
 ```
 
 `yieldable-streams` does not actually use generators internally, and thus is compatible with node 0.10 and up.  You can use it with [`gnode`](https://npmjs.com/package/gnode), [`regenerator`](https://npmjs.com/package/regenerator), [`babel`](https://babeljs.io), [`harmonize`](https://npmjs.com/package/harmonize), [io.js](https://iojs.org/), or any other convenient way of implementing generators for your targeted versions of node.
@@ -112,23 +123,28 @@ If `fn` is already wrapped by a coroutine library, such that it returns a thenab
 ```js
 aFactory = Writable.factory(
   co.wrap(
-    function *(...args) {
-      /* 
-        This generator will be run by `co`, but its `this`
-        will still be the stream's `spi()`, so you can still
-        `yield this.read()`.  If the generator throws an
-        uncaught exception, it will become an error event
-        on the stream.  Otherwise, the stream will `finish`
-        when the generator ends, unless you `this.end()`
-        it first.
+    function *(...args) { /* 
+    
+      This generator will be run by `co`, but its `this` will still be
+      the stream's `spi()`, so you can still `yield this.read()`.
+        
+      If the generator throws an uncaught exception, it will become an
+      error event on the stream.  Otherwise, the stream will `finish`
+      when the generator ends, unless you `this.end()` it first.
        
-        Of course, for this to work, the library you use
-        to do the wrapping must return a promise or a
-        thunk (node-style callback-taking function) when
-        called, it must allow you to yield to thunks and
-        receive the corresponding 
-      */
-    }
+      Of course, for this to work, the library you use to do the
+      wrapping must:
+
+        * return a promise or a thunk (a 1-argument function taking a
+          node-style callback) when called
+
+        * allow you to yield to thunks and receive the data or errors
+          they produce
+
+      co.wrap() meets these criteria; other libraries' wrappers may
+      do so as well.
+
+    */ }
   )
 )
 ```
