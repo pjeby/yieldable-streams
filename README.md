@@ -21,7 +21,7 @@ const
     times = Transform.factory(
         function *(multiplier) {
             var item;
-            while ((item = yield this.read()) != null) {
+            while ( (item = yield this.read()) !== null ) {
                 yield this.write(item * multiplier);
             }
         }
@@ -30,7 +30,7 @@ const
     toConsole = Writable.factory(
         function *() {
             var item;
-            while ((item = yield this.read()) != null) {
+            while ( (item = yield this.read()) !== null ) {
                 console.log(item);
             }
         }
@@ -52,7 +52,7 @@ console.log("start");
 
 In the above code, the calls to `fromIter()`, `times()`, and `toConsole()` create *real*, honest-to-goodness Node streams: streams3 streams, in fact, straight from the [`readable-stream`](https://npmjs.com/package/readable-stream) package.  But on the inside, they're hooked up to generator functions, that can not only yield to `this.write()` etc., but also to promises, thunks, or other generator functions.
 
-You can use all the async yielding goodness of [`co`](https://npmjs.com/package/co), [`thunks`](https://npmjs.com/package/thunks), or any other coroutine wrapper library you like, in fact, as long as it supports yielding to thunks.
+(You can use all the async yielding goodness of [`co`](https://npmjs.com/package/co), [`thunks`](https://npmjs.com/package/thunks), or any other coroutine wrapper library you like, in fact, as long as it supports yielding to thunks.)
 
 And because these are true Node streams, that means you can write gulp plugins as easily as this (Javascript):
 
