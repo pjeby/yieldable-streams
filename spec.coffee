@@ -15,7 +15,7 @@ failSafe = (done, fn) -> ->
     try fn.apply(this, arguments)
     catch e then done(e)
 
-{Readable, Writable, Duplex} = ys = require './'
+{Readable, Writable, Duplex, Transform} = ys = require './'
 
 rs = require 'readable-stream'
 
@@ -275,11 +275,11 @@ checkAny = (clsName, cls, readable, writable) ->
 checkAny('Readable', Readable, yes, no)
 checkAny('Writable', Writable, no, yes)
 checkAny('Duplex', Duplex, yes, yes)
+checkAny('Transform', Transform, yes, yes)
 
 require('mockdown').testFiles(['README.md'], describe, it, skip: no, globals:
     require: (arg) -> if arg is 'yieldable-streams' then ys else require(arg)
 )
-
 
 
 

@@ -2,13 +2,13 @@
 
 Wouldn't it be great if you could create Node streams -- readable, writable, or duplex/transform/gulp plugins -- with just a single generator function?  Check this out:
 
-<!-- mockdown-setup:  --printResults -->
+<!-- mockdown-setup:  --printResults; languages.js = 'babel' -->
 
 <!-- mockdown: waitForOutput = 'done' -->
 
-```es6
+```js
 const
-    {Readable, Writable, Duplex} = require('yieldable-streams'),
+    {Readable, Writable, Duplex, Transform} = require('yieldable-streams'),
 
     fromIter = Readable.factory(
         function *(items) {
@@ -18,7 +18,7 @@ const
         }
     ),
 
-    times = Duplex.factory(
+    times = Transform.factory(
         function *(multiplier) {
             var item;
             while ((item = yield this.read()) != null) {
@@ -56,8 +56,8 @@ You can use all the async yielding goodness of [`co`](https://npmjs.com/package/
 
 And because these are true Node streams, that means you can write gulp plugins as easily as this (Javascript):
 
-```es6
-module.exports = require('yieldable-streams').Duplex.factory(
+```js
+module.exports = require('yieldable-streams').Transform.factory(
     function* (options) { /* plugin options */
         var file;
         while ((file = yield this.read()) != null) {  /* get a file */
@@ -72,7 +72,7 @@ Or this (CoffeeScript):
 <!--mockdown: ++ignore-->
 
 ```coffee
-module.exports = require('yieldable-streams').Duplex.factory (options) ->
+module.exports = require('yieldable-streams').Transform.factory (options) ->
     while (file = yield @read())?
         console.log file.path
         yield @write(file)
@@ -91,14 +91,15 @@ Using `ys = require('yieldable-streams')` to get the module, you can access the 
 * `ys.Readable` - class to create readable streams
 * `ys.Writable` - class to create writable streams
 * `ys.Duplex` - class to create duplex streams
+* `ys.Transform` - class to create transform streams
 
 Each class works *just like* the corresponding `readable-stream` class, except for two extra methods.  The first extra method, on the instances, is the `spi()` method, which returns a "stream provider interface" object, for use with generator functions.
 
 This "stream provider interface" object has (some or all of) the following methods:
 
-* `read()` -- return a thunk for the next value written to the stream (`Writable` and `Duplex` streams only).  If stream input has ended, the thunk will yield a null or undefined value.  If a stream that is piped into the current stream fires an error event, that error will be received instead of the data, causing an exception at the point of `yield this.read()`
+* `read()` -- return a thunk for the next value written to the stream (`Writable`, `Duplex`, and `Transform` streams).  If stream input has ended, the thunk will yield a null or undefined value.  If a stream that is piped into the current stream fires an error event, that error will be received instead of the data, causing an exception at the point of `yield this.read()`
 
-* `write(data)` -- `push()` data onto the stream, returning a thunk that will fire when the stream is ready for more output (`Readable` and `Duplex` streams only).
+* `write(data)` -- `push()` data onto the stream, returning a thunk that will fire when the stream is ready for more output (`Readable`, `Duplex`, and `Transform` streams only).
 
 * `end(err)` -- end the stream, optionally with an error object to emit as an `"error"` event (all stream types).
 
@@ -108,7 +109,7 @@ If `fn` is already wrapped by a coroutine library, such that it returns a thenab
 
 <!-- mockdown: ++ignore -->
 
-```es6
+```js
 aFactory = Writable.factory(
   co.wrap(
     function *(...args) {

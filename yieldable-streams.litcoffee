@@ -4,6 +4,7 @@ This module implements enhanced `readable-stream` derivatives that provide
 an inverted API for use with generator-based coroutines.  `redefine` is used
 to do mixins and lazy properties (such as callback queues), and `autocreate`
 is used to make the classes instantiable without `new`, like Node core streams.
+The `thunks` module is lazily-loaded to wrap generators if needed.
 
     rs = require 'readable-stream'
     redefine = require('redefine')
@@ -23,8 +24,7 @@ called, it will actually return the same object.
 
     base_mixin =
         spi: redefine.later ->
-            spi = {}
-            me = this
+            spi = {}; me = this
             ['read', 'write', 'end'].forEach (key) ->
                 if method = me["_spi_"+key]
                     spi[key] = -> method.apply(me, arguments)
@@ -53,7 +53,7 @@ can resume accepting writes when the data is actually read.
         __init__: ->
             @wreq = undefined   # incoming write request callback
             @on 'pipe', (s) => s.on 'error', (e) => @_tpush(null, null, e)
-            @on 'finish', => @_tpush(null, null, null)  # queue a null at EOF
+            @once 'prefinish', => @_tpush(null, null, null)  # queue null @ EOF
 
         _write: (data, enc, done) -> @_tpush(done, data)
 
@@ -71,7 +71,7 @@ can resume accepting writes when the data is actually read.
             if @_writableState.finished or @dbuf.length
                 d1 = if @dbuf.length then @dbuf.shift() else null
                 d2 = if @dbuf.length then @dbuf.shift() else null
-                process.nextTick => done(d1, d2)
+                process.nextTick -> done(d1, d2)
             else
                 @rreq.push(done)
             if @wreq
@@ -96,27 +96,27 @@ the buffer has room, allowing the caller to proceed.
             if @push(data) then process.nextTick else (done) => @ww.push(done)
 
 
+### Transform Streams
 
+Transform streams are basically Duplex streams with extra flow control.  But
+because they use a different protocol (`_transform`/`_flush`), we have to
+swap a few methods around, and make sure the base class's `_read()` and
+`_write()` get called, while still working our own flow control magic.
 
+    transform_mixin =
+        __init__: ->
+            @wreq = undefined   # incoming write request callback
+            @on 'pipe', (s) => s.on 'error', (e) => @_tpush(null, null, e)
+            # no need to trap 'prefinish'; Transform calls _flush for that
 
+        _read:  ->
+            readable_mixin._read.call(this) # unblock write()
+            rs.Transform::_read.apply(this, arguments)  # do transform stuff
 
+        _write: rs.Transform::_write
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        _transform: writable_mixin._write
+        _flush: (done) -> @_tpush(done, null, null)
 
 
 
@@ -166,7 +166,6 @@ factory, they're used to initialize the new streams.
 
     class exports.Readable extends rs.Readable
         Readable = autocreate this
-        constructor: -> super; @__init__?()
 
         @factory = factory
         redefine @::, base_mixin
@@ -174,7 +173,7 @@ factory, they're used to initialize the new streams.
 
     class exports.Writable extends rs.Writable
         Writable = autocreate this
-        constructor: -> super; @__init__?()
+        constructor: -> super; @__init__()
 
         @factory = factory
         redefine @::, base_mixin
@@ -182,21 +181,22 @@ factory, they're used to initialize the new streams.
 
     class exports.Duplex extends rs.Duplex
         Duplex = autocreate this
-        constructor: -> super; @__init__?()
+        constructor: -> super; @__init__()
 
         @factory = factory
         redefine @::, base_mixin
         redefine @::, readable_mixin
         redefine @::, writable_mixin
 
+    class exports.Transform extends rs.Transform
+        Transform = autocreate this
+        constructor: -> super; @__init__()
 
-
-
-
-
-
-
-
+        @factory = factory
+        redefine @::, base_mixin
+        redefine @::, readable_mixin, configurable: yes
+        redefine @::, writable_mixin, configurable: yes
+        redefine @::, transform_mixin
 
 
 
