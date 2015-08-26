@@ -203,3 +203,85 @@ factory, they're used to initialize the new streams.
 
 
 
+## Utility Functions
+
+`tap` is just a way to apply side-effects to an object and return the object;
+it's not very performant, but it sure is convenient.
+
+    tap = (ob, fn) -> fn.call(ob); ob
+
+
+### Creating Combined Pipeline Streams
+
+The `pipeline` facility combines a series of duplex or transform streams into
+a single duplex stream, which will emit any errors emitted by its components.
+It can optionally *not* do such error trapping, and also optionally skip piping
+the streams together as well.  (Mostly, this is a convenience wrapper for things
+you'd typically do with some streams before using `duplexify()` to create a
+combined stream.
+
+    exports.pipeline = (streams, opts) ->
+
+        if !streams or streams.length == 0
+            return exports.duplexify()  # non-readable, non-writable
+
+        else if streams.length == 1
+            return streams[0]
+
+        [heads..., tail] = streams
+
+        unless opts?.noPipe
+            tail = streams.reduce (s1, s2) -> s1.pipe(s2)
+
+        return tap exports.duplexify(heads[0], tail), -> unless opts?.noErr
+            doErr = @emit.bind(this, 'error')
+            stream.on('error', doErr) for stream in heads
+            # duplexify will chain tail errors if the tail is readable; so if
+            # it's not readable, we need to handle it here.
+            tail.on('error', doErr) unless tail.readable
+
+
+
+
+
+### Creating Duplex Streams from a Writable and Readable
+
+    exports.duplexify = (head, tail) ->
+        # Create a duplex stream
+
+        tap exports.Duplex(opts =
+            # that may or may not be read/write, depending on the sources
+            writable: head?.writable ? no
+            readable: tail?.readable ? no
+
+            # and which matches the sources' respective object modes
+            writableObjectMode: head?._writableState?.objectMode ? yes
+            readableObjectMode: tail?._readableState?.objectMode ? yes
+
+            # and string encodings
+            defaultEncoding: head?._writableState?.defaultEncoding ? null
+            encoding: encoding = tail?._readableState?.encoding ? null
+        ), ->
+            if opts.writable then exports.mirror(
+                # Whose writable end writes to a pass-through readable
+                # that's piped into the head of the pipeline
+                this, tap(exports.Readable(objectMode:yes), -> @pipe(head))
+            )
+            if opts.readable then exports.mirror(
+                # And whose readable end is written by a pass-through writable
+                # that's piped from the tail of the pipeline
+                tap(exports.Writable(objectMode:yes), -> tail.pipe(this)),
+                this, encoding
+            )
+
+    exports.mirror = (src, dest, enc, done) ->
+        src = src.spi()
+        dest = dest.spi()
+        do consume = -> src.read() (err, data) ->
+            if err or data is null
+                dest.end(err)
+                done?(err)
+            else
+                dest.write(data, enc)(consume)
+
+

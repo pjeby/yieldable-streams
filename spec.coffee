@@ -11,7 +11,8 @@ spy.named = (name, args...) ->
     s.displayName = name
     return s
 
-{Readable, Writable, Duplex, Transform} = ys = require './'
+{Readable, Writable, Duplex, Transform, mirror, duplexify, pipeline } = ys =
+    require './'
 
 rs = require 'readable-stream'
 
@@ -33,7 +34,6 @@ shouldCallLaterOnce = (spy, args...) ->
 onceExactly = (spy, args...) ->
     spy.should.have.been.calledOnce
     spy.should.have.been.calledWithExactly(args...)
-
 
 
 
@@ -277,9 +277,255 @@ checkAny('Writable', Writable, no, yes)
 checkAny('Duplex', Duplex, yes, yes)
 checkAny('Transform', Transform, yes, yes)
 
+
+
+
+
+
+
+
+
+describe "Pipeline Utilities", ->
+
+    fromArray = Readable.factory (array) ->
+        for item in array
+            yield @write(item)
+        return
+
+    toArray = (r) -> ->
+        r.pipe(w = Writable(objectMode: yes))
+        data = []
+        read = w.spi().read
+        while (item = yield read()) isnt null
+            data.push(item)
+        return data
+
+    describe "mirror(src, dest, enc? done?)", ->
+
+        it "`done` and `enc` are optional", ->
+            [w, r] = [Writable(objectMode: yes), Readable(objectMode: yes)]
+            fromArray([1,2,3]).pipe(w)
+            res = toArray(r)
+            mirror(w, r)
+            expect(yield res).to.eql [1,2,3]
+
+        it "`done` is called when stream finishes", ->
+            [w, r] = [Writable(objectMode: yes), Readable(objectMode: yes)]
+            fromArray([1,2,3]).pipe(w)
+            res = toArray(r)
+            yield (done) -> mirror(w, r, null, done)
+            expect(yield res).to.eql [1,2,3]
+
+        it "`enc` is used for encoding", ->
+            [w, r] = [Writable(objectMode: yes), Readable()]
+            fromArray(["61", "6263"]).pipe(w)
+            res = toArray(r)
+            yield (done) -> mirror(w, r, "hex", done)
+            expect(yield res).to.eql [Buffer([0x61]), Buffer([0x62, 0x63])]
+
+
+
+
+        it "mirrors errors from pipes into `src` and sends them to `done`", ->
+            [w, r] = [Writable(), Readable()]
+            (p = Readable()).pipe(w)
+            emitted = no
+
+            r.on "error", (e) ->
+                expect(e).to.equal err
+                emitted = yes
+            p.spi().end(err = new Error("done"))
+
+            try
+                yield (done) -> mirror w, r, null, done
+            catch e
+                emitted.should.be.true
+                expect(e).to.equal err
+                return
+            throw new AssertionError("Error wasn't sent to done")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    describe "duplexify(writable, readable)", ->
+
+        describe "pipes and mirrors each applicable side", ->
+
+            beforeEach ->
+                [@w, @r] = [Writable(), Readable()]
+                @rpipe = spy @r, 'pipe'
+                @w.on 'pipe', @wpipe = spy ->
+
+                @check = (dup, ms, readable, writable) ->
+                    if writable
+                        @wpipe.should.be.calledOnce
+                        headPass = @wpipe.args[0][0]
+                        ms.should.be.calledWithExactly(same(dup), same(headPass))
+                    else @wpipe.should.not.be.called
+
+                    if readable
+                        @rpipe.should.be.calledOnce
+                        tailPass = @rpipe.args[0][0]
+                        ms.should.be.calledWithExactly(
+                            same(tailPass), same(dup), null
+                        )
+                    else @rpipe.should.not.be.called
+
+                    dup.readable.should.equal readable
+                    dup.writable.should.equal writable
+
+            it "when both sides are available", ->
+                withSpy ys, 'mirror', (ms) =>
+                    dup = duplexify(@w, @r)
+                    @check(dup, ms, yes, yes)
+                    ms.should.be.calledTwice
+
+            it "when neither side is available", ->
+                withSpy ys, 'mirror', (ms) =>
+                    dup = duplexify(@r, @w)
+                    @check(dup, ms, no, no)
+                    ms.should.not.be.called
+
+
+
+            it "when only a writable is available", ->
+                withSpy ys, 'mirror', (ms) =>
+                    dup = duplexify(@w, @w)
+                    @check(dup, ms, no, yes)
+                    ms.should.be.calledOnce
+
+            it "when only a readable is available", ->
+                withSpy ys, 'mirror', (ms) =>
+                    dup = duplexify(@r, @r)
+                    @check(dup, ms, yes, no)
+                    ms.should.be.calledOnce
+
+        describe "matches", ->
+            getOpts = (wo, ro) ->
+                opts = null
+                withSpy ys, 'Duplex', (Dup) ->
+                    duplexify(Writable(wo), Readable(ro))
+                    Dup.should.be.calledOnce
+                    opts = Dup.args[0][0]
+                return opts
+                
+            it "readable's objectMode", ->
+                getOpts(null, null).readableObjectMode.should.be.false
+                getOpts(null, objectMode: yes).readableObjectMode.should.be.true
+                
+            it "readable's encoding", ->
+                expect(getOpts(null, null).encoding).to.not.exist
+                expect(getOpts(null, encoding:"hex").encoding).to.equal "hex"
+                
+            it "writable's objectMode", ->
+                getOpts(null, null).writableObjectMode.should.be.false
+                getOpts(objectMode: yes).writableObjectMode.should.be.true
+                
+            it "writable's defaultEncoding", ->
+                expect(getOpts(null, null).defaultEncoding).to.equal "utf8"
+                expect(getOpts(defaultEncoding:"hex").defaultEncoding).to.equal "hex"
+
+
+
+
+
+    describe "pipeline(streams, opts?)", ->
+
+        it "pipes streams together by default", ->
+            p = pipeline([s1 = Readable(), s2 = Transform(), s3 = Writable()])
+            s1._readableState.pipes.should.equal s2
+            s2._readableState.pipes.should.equal s3
+
+        it "Doesn't pipe anything if `noPipe`", ->
+            p = pipeline(
+                [s1 = Readable(), s2 = Transform(), s3 = Writable()]
+                noPipe: yes
+            )
+            expect(s1._readableState.pipes).to.equal null
+            expect(s2._readableState.pipes).to.equal null
+
+        it "Does error handling by default", ->
+            p = pipeline([s1 = Readable(), s2 = Transform(), s3 = Writable()])
+            p.on 'error', h = spy ->
+            checkEmit = (s) ->
+                s.emit 'error', e = new Error()
+                h.should.be.calledWithExactly(same(e))
+            checkEmit(s1)
+            checkEmit(s2)
+            checkEmit(s3)
+            h.should.be.calledThrice
+            
+        it "Doesn't do error handling if `noErr`", ->
+            p = pipeline(
+                [s1 = Readable(), s2 = Transform(), s3 = Writable()]
+                noErr: yes
+            )
+            p.on 'error', h = spy ->
+            checkEmit = (s) ->
+                s.on 'error', ->    # prevent uncaught error
+                s.emit 'error', e = new Error()
+                h.should.not.be.called
+            checkEmit(s1)
+            checkEmit(s2)
+            checkEmit(s3)
+
+
+        it "doesn't duplicate error handling on a readable tail", ->
+            p = pipeline([s1 = Readable(), s2 = Transform(), s3 = Duplex()])
+            p.on 'error', h = spy ->
+            checkEmit = (s) ->
+                s.emit 'error', e = new Error()
+                h.should.be.calledWithExactly(same(e))
+            checkEmit(s1)
+            checkEmit(s2)
+            checkEmit(s3)
+            h.should.be.calledThrice
+
+        it "Returns an unreadable, unwritable stream if no streams", ->
+            p = pipeline([])
+            p.readable.should.be.false
+            p.writable.should.be.false
+            p.should.be.instanceOf Duplex
+
+        it "Returns original stream if length is 1", ->
+            p = pipeline([s=Duplex()])
+            p.should.equal s
+
+
 require('mockdown').testFiles(['README.md'], describe, it, skip: no, globals:
     require: (arg) -> if arg is 'yieldable-streams' then ys else require(arg)
 )
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -1,5 +1,7 @@
 # yieldable-streams
 
+> New in 0.3.0: [pipelining utilities](#pipelining-utilities), and the `.write()` method now accepts an optional encoding parameter, just like a stream's `push()` method.
+
 Wouldn't it be great if you could create Node streams -- readable, writable, or duplex/transform/gulp plugins -- with just a single generator function?  Check this out:
 
 <!-- mockdown-setup:  --printResults; languages.js = 'babel' -->
@@ -81,9 +83,9 @@ Or this (CoffeeScript):
 ```coffee
 module.exports = require('yieldable-streams').Transform.factory (options) ->
 
-    while (file = yield @read())?   # get a file
-        console.log file.path       # do stuff
-        yield @write(file)          # pass it on
+    while (file = yield @read()) isnt null  # get a file
+        console.log file.path               # do stuff
+        yield @write(file)                  # pass it on
 
     # do other things
     
@@ -152,3 +154,89 @@ aFactory = Writable.factory(
 If `fn`, however, returns a generator or is a generator function (i.e., it has *not* already been wrapped by a coroutine library, then `yieldable-streams` will wrap it using the [`thunks`](https://npmjs.com/package/thunks) library.  (Lazily-loaded, to minimize overhead if you're not using it.)
 
 The optional `opts` object contains the `readable-stream` options that the factory will use to create the stream.  If unsupplied, it will default to `{objectMode: true}`, thereby creating an object stream suitable for use with, e.g. gulp.  See the [Node streams documentation](https://nodejs.org/api/stream.html) for more information on the possible options for each stream type.
+
+
+## Pipelining Utilities
+
+This module also contains three pipelining utilities: `pipeline(streams, opts?)`, `duplexify(writable, readable)` and `mirror(src, dest, enc?, done?)`.
+
+### `pipeline(streams, opts?)`
+
+`pipeline(streams, opts?)` takes an array of streams, pipes them together, and returns a single duplex stream that will emit errors when any component stream issues an error:
+
+<!-- mockdown: waitForOutput="done" -->
+
+```js
+import {pipeline} from 'yieldable-streams';  // aka require('yieldable-streams').pipeline
+
+var times30 = pipeline([
+    times(2),
+    times(3),
+    times(5)
+]);
+
+fromIter([1,2,3])
+    .pipe(times30)
+    .pipe(toConsole())
+    .on('finish', () => console.log("done"));
+```
+>     30
+>     60
+>     90
+>     done
+
+`pipeline()` is just a convenience wrapper for `duplexify()` -- it just pipes all the streams together, and sets up error handling for the combined stream returned by `duplexify(streams[0], streams[streams.length-1])`.  (You can also have it skip either the piping or
+error handling by passing `{noPipe: true}` or `{noErr: true}` in its options, respectively).
+
+### `duplexify(writable, readable)`
+
+`duplexify()` combines a writable and readable into one stream, *without* piping them together, and the resulting stream will only emit errors if the readable stream emits an error:
+
+<!-- mockdown: waitForOutput="done"; -->
+
+```js
+import {duplexify} from 'yieldable-streams';  // aka require('yieldable-streams').duplexify
+
+var times2 = times(2),
+    times6 = duplexify(
+        times2,
+        times2.pipe(times(3))
+    );
+
+fromIter([1,2,3])
+    .pipe(times6)
+    .pipe(toConsole())
+    .on('finish', () => console.log("done"));
+```
+>     6
+>     12
+>     18
+>     done
+
+For both `pipeline()` and `duplexify()`, the resulting stream will be readable only if the last stream is readable, and writable only if the first stream is writable.  If the first and last streams are true streams2 streams (using `readable-stream` or the built-in Node streams), then the combined stream will have the correct `objectMode` and encodings at each end.  But if either end is a streams1 stream, that end of the combined stream will simply fall back to being an object-mode stream.
+
+High-water marks for the combined stream's sides are always the default setting for the type of stream at that side.  (i.e. 16 for an `objectMode` end, 16K for a `Buffer` end.  It is not currently possible to change these or any other stream options for the combined streams: to a large extent the point of `pipeline()` and `duplexify()` is that they're for times when you are writing generic utilities that don't *know* what stream options to set, and must go by the settings of the underlying streams.
+
+### `mirror(src, dest, enc?, done?)`
+
+`mirror()` takes two yieldable-streams and makes data written to `src` appear as output from `dest`, optionally using encoding `enc` and optionally invoking a callback after the source stream ends or emits an error.  In a sense, it's like an inside-out `.pipe()` operation that works only on streams with an `.spi()` method.  It's mainly useful for creating half-duplex passthrough streams, which is what `duplexify()` does with it: one for each end of the full-duplex stream.
+
+<!-- mockdown: waitForOutput="done"; -->
+
+```js
+import {mirror} from 'yieldable-streams';  // aka require('yieldable-streams').mirror
+
+var aWritable = Writable({objectMode: true}),
+    aReadable = Readable({objectMode: true});
+    
+fromIter([1,2,3]).pipe(aWritable);
+
+aReadable.pipe(toConsole());
+
+mirror(aWritable, aReadable, null, () => console.log("done"));
+```
+>     1
+>     2
+>     3
+>     done
+

@@ -1,6 +1,6 @@
 {
   "name": "yieldable-streams",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Easily create streams (and gulp plugins) w/generators",
   "repository": "git@github.com:pjeby/yieldable-streams.git",
   "homepage": "https://github.com/pjeby/yieldable-streams",
