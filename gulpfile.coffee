@@ -1,5 +1,6 @@
 gulp = require('gulp')
 mocha = require 'gulp-mocha'
+require('co-mocha')(require 'mocha')
 coffee = require 'gulp-coffee'
 regenerator = require 'gulp-regenerator'
 
