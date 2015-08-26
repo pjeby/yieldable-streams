@@ -1,6 +1,7 @@
 gulp = require('gulp')
 mocha = require 'gulp-mocha'
 coffee = require 'gulp-coffee'
+regenerator = require 'gulp-regenerator'
 
 require 'coffee-script/register'
 require('babel-core/polyfill')
@@ -17,6 +18,9 @@ gulp.task 'build', ->
 
 gulp.task 'test', ['build'], ->
     gulp.src 'spec.*coffee'
+    .pipe coffee()
+    .pipe regenerator(includeRuntime: false)  # the polyfill installs it
+    .pipe gulp.dest('.')
     .pipe mocha
         reporter: "spec"
         useColors: yes
