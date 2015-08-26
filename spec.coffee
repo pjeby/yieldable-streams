@@ -11,10 +11,6 @@ spy.named = (name, args...) ->
     s.displayName = name
     return s
 
-failSafe = (done, fn) -> ->
-    try fn.apply(this, arguments)
-    catch e then done(e)
-
 {Readable, Writable, Duplex, Transform} = ys = require './'
 
 rs = require 'readable-stream'
@@ -29,12 +25,16 @@ withSpy = (ob, name, fn) ->
 
 checkTE = (fn, msg) -> fn.should.throw TypeError, msg
 
-shouldCallLaterOnce = (done, spy, args...) ->
-    setImmediate failSafe done, -> onceExactly(spy, args...); done()
+shouldCallLaterOnce = (spy, args...) ->
+    yield setImmediate
+    onceExactly(spy, args...)
+    return
 
 onceExactly = (spy, args...) ->
     spy.should.have.been.calledOnce
     spy.should.have.been.calledWithExactly(args...)
+
+
 
 
 
@@ -67,57 +67,57 @@ checkAny = (clsName, cls, readable, writable) ->
                 expect(@s.spi()).to.equal @spi
 
             if writable then describe ".read() returns a thunk", ->
-                it "that errors when a piped stream emits an error", (done) ->
+                it "that errors when a piped stream emits an error", ->
                     ss = new Readable(objectMode: yes); ss.pipe(@s)
                     @spi.read() s = spy.named 'thunk', ->
                     @spi.read() s   # check pre-queued read case!
                     ss.emit("error", e=new Error)
-                    shouldCallLaterOnce(done, s, e, null)
+                    yield from shouldCallLaterOnce(s, e, null)
 
-                it "that resolves to null after .end() is called", (done) ->
+                it "that resolves to null after .end() is called", ->
                     @s.end()
                     @spi.read() s = spy.named 'thunk', ->
                     s.should.not.have.been.called   # must be async
-                    shouldCallLaterOnce(done, s, null, null)
+                    yield from shouldCallLaterOnce(s, null, null)
 
                 describe "that resolves when data is written to the stream", ->
 
-                    shouldReadTwice = (done, s, d1, d2) ->
-                        setImmediate failSafe done, ->
-                            s.should.be.calledTwice
-                            s.should.be.calledWithExactly(null, same(d1))
-                            s.should.be.calledWithExactly(null, same(d2))
-                            s.args[0][1].should.equal d1
-                            done()
+                    shouldReadTwice = (s, d1, d2) ->
+                        yield setImmediate
+                        s.should.be.calledTwice
+                        s.should.be.calledWithExactly(null, same(d1))
+                        s.should.be.calledWithExactly(null, same(d2))
+                        s.args[0][1].should.equal d1
+                        return
 
-                    it "before .read() is called (once)", (done) ->
+                    it "before .read() is called (once)", ->
                         @s.write(data = thing: 5)
                         @spi.read() s = spy.named 'thunk', ->
-                        shouldCallLaterOnce(done, s, null, same(data))
+                        yield from shouldCallLaterOnce(s, null, same(data))
 
-                    it "before .read() is called (multi)", (done) ->
+                    it "before .read() is called (multi)", ->
                         @s.write(d1 = thing: 5); @s.write(d2 = thing: 6)
                         @spi.read() s = spy.named 'thunk', ->
                         @spi.read() s
-                        shouldReadTwice(done, s, d1, d2)
+                        yield from shouldReadTwice(s, d1, d2)
 
-                    it "after .read() is called", (done) ->
+                    it "after .read() is called", ->
                         @spi.read() s = spy.named 'thunk', ->
                         process.nextTick => @s.write(d)
-                        shouldCallLaterOnce(done, s, null, same(d = thing: 7))
+                        yield from shouldCallLaterOnce(s, null, same(d = thing: 7))
 
-                    it "after .read() is called (multi)", (done) ->
+                    it "after .read() is called (multi)", ->
                         @spi.read() s = spy.named 'thunk', ->
                         @spi.read() s
                         process.nextTick => @s.write(d1); @s.write(d2)
-                        shouldReadTwice(done, s, d1 = thing: 8, d2 = thing: 9)
+                        yield from shouldReadTwice(s, d1 = thing: 8, d2 = thing: 9)
 
-                    it "before and after .read() is called", (done) ->
+                    it "before and after .read() is called", ->
                         @spi.read() s = spy.named 'thunk', ->
                         @s.write(d1 = thing: 8)
                         @spi.read() s
                         @s.write(d2 = thing: 9)
-                        shouldReadTwice(done, s, d1, d2)
+                        yield from shouldReadTwice(s, d1, d2)
 
 
 
@@ -164,13 +164,12 @@ checkAny = (clsName, cls, readable, writable) ->
 
             describe ".end(err?)", ->
 
-                it "emits `err` as an error event", (done) ->
+                it "emits `err` as an error event", ->
                     @s.on 'error', s = spy.named 'error', ->
                     @spi.end(err = new Error)
-                    setImmediate failSafe done, ->
-                        s.should.have.been.calledOnce
-                        s.should.have.been.calledWithExactly(same(err))
-                        done()
+                    yield setImmediate
+                    s.should.have.been.calledOnce
+                    s.should.have.been.calledWithExactly(same(err))
 
                 if readable then it "calls stream.push(null)", ->
                     withSpy @s, 'push', (p) =>
@@ -195,6 +194,7 @@ checkAny = (clsName, cls, readable, writable) ->
                                 p.should.have.been.calledWithExactly(null)
                                 e.should.have.been.calledAfter(p)
                 )
+
 
 
 
@@ -246,7 +246,7 @@ checkAny = (clsName, cls, readable, writable) ->
 
             describe "via `thunks` if it's a generator", ->
 
-                it "when the generator finishes without error", (done) ->
+                it "when the generator finishes without error", ->
                     s = @setup(
                         called: no
                         next: ->
@@ -254,9 +254,9 @@ checkAny = (clsName, cls, readable, writable) ->
                             else @called = yes; done: no, value: process.nextTick
                         throw: ->
                     )
-                    shouldCallLaterOnce(done, s, null)
+                    yield from shouldCallLaterOnce(s, null)
 
-                it "when the generator finishes with error", (done) ->
+                it "when the generator finishes with error", ->
                     e = new Error()
                     s = @setup(
                         called: no
@@ -267,7 +267,7 @@ checkAny = (clsName, cls, readable, writable) ->
                                 return done: no, value: process.nextTick
                         throw: ->
                     )
-                    shouldCallLaterOnce(done, s, same(e))
+                    yield from shouldCallLaterOnce(s, same(e))
 
 
 
