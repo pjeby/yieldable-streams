@@ -213,7 +213,7 @@ fromIter([1,2,3])
 >     18
 >     done
 
-For both `pipeline()` and `duplexify()`, the resulting stream will be readable only if the last stream is readable, and writable only if the first stream is writable.  If the first and last streams are true streams2 streams (using `readable-stream` or the built-in Node streams), then the combined stream will have the correct `objectMode` and encodings at each end.  But if either end is a streams1 stream, that end of the combined stream will simply fall back to being an object-mode stream.
+For both `pipeline()` and `duplexify()`, the resulting stream will be readable only if the last stream is readable, and writable only if the first stream is writable.  If the first and last streams are true streams2 or streams3 streams (i.e., are internally based on the `readable-stream` module or the built-in Node streams module), then the combined stream will have the correct `objectMode` and encodings at each end.  But if either end is a streams1 stream or an alternative implementation of the streams interface, then that end of the combined stream will simply fall back to being an object-mode stream.
 
 High-water marks for the combined stream's sides are always the default setting for the type of stream at that side.  (i.e. 16 for an `objectMode` end, 16K for a `Buffer` end.  It is not currently possible to change these or any other stream options for the combined streams: to a large extent the point of `pipeline()` and `duplexify()` is that they're for times when you are writing generic utilities that don't *know* what stream options to set, and must go by the settings of the underlying streams.
 
