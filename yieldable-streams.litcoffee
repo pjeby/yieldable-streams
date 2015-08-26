@@ -92,8 +92,8 @@ the buffer has room, allowing the caller to proceed.
 
         _read: -> @ww.shift()() if @ww.length
 
-        _spi_write: (data) ->
-            if @push(data) then process.nextTick else (done) => @ww.push(done)
+        _spi_write: (data, enc) ->
+            if @push(data, enc) then process.nextTick else (done) => @ww.push(done)
 
 
 ### Transform Streams

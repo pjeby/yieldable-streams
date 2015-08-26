@@ -110,7 +110,7 @@ This "stream provider interface" object has (some or all of) the following metho
 
 * `read()` -- return a thunk for the next value written to the stream (`Writable`, `Duplex`, and `Transform` streams).  If stream input has ended, the thunk will yield a null or undefined value.  If a stream that is piped into the current stream fires an error event, that error will be received instead of the data, causing an exception at the point of `yield this.read()`
 
-* `write(data)` -- `push()` data onto the stream, returning a thunk that will fire when the stream is ready for more output (`Readable`, `Duplex`, and `Transform` streams only).
+* `write(data[, enc])` -- `push(data[, enc])` onto the stream, returning a thunk that will fire when the stream is ready for more output (`Readable`, `Duplex`, and `Transform` streams only).
 
 * `end(err)` -- end the stream, optionally with an error object to emit as an `"error"` event (all stream types).
 

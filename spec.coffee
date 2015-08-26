@@ -127,7 +127,16 @@ checkAny = (clsName, cls, readable, writable) ->
                     withSpy @s, 'push', (p) =>
                         @spi.write(data = thing:1)
                         p.should.have.been.calledOnce
-                        p.should.have.been.calledWithExactly(same(data))
+                        p.should.have.been.calledWithExactly(
+                            same(data), undefined
+                        )
+
+                it "sends encoding to the stream's push() method", ->
+                    withSpy @s, 'push', (p) =>
+                        @spi.write("data", "utf8")
+                        p.should.have.been.calledOnce
+                        p.should.have.been.calledWithExactly("data", "utf8")
+
 
                 it "returns a thunk that resolves when data is read", ->
                     @spi.write(data = thing:2) s = spy.named 'thunk', ->
@@ -139,15 +148,6 @@ checkAny = (clsName, cls, readable, writable) ->
                 it "returns process.nextTick if buffer space is available", ->
                     spi = cls(objectMode: yes).spi()
                     expect(spi.write(data=thing:3)).to.equal process.nextTick
-
-
-
-
-
-
-
-
-
 
 
 
